@@ -52,13 +52,13 @@ export const createProduct = async (req, res) => {
       image: `/images/${image._id}`, //endpoint
     });
 
-    // borro el archivo temporal del disco
+    // elimino el archivo temporal del disco
     fs.rm(file.path, (error) => {
       if (error) console.log("No se pudo eliminar la imagen temporal:", error.message);
     });
 
     //respuesta de exito al crear producto
-    res.json({
+    return res.json(201)({
       ok: true,
       msg: "Producto creado correctamente.",
       product: newProd,
@@ -125,6 +125,41 @@ export const getProducts = async (req, res) => {
   }
 };
 
+export const getProductsById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const prod = await Products.findById(id); //busco en base
+
+    if (!prod || prod.deleteAt) {
+      return res.status(404).json({
+        ok: false,
+        msg: "El producto no existe.",
+      });
+    }
+
+    //armo la base para ocnvertir la imagen a url
+    const BASE = (process.env.BASE_URL_API || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+
+    const product = {
+      ...prod.toObject(),
+      image: prod.image && !prod.image.startsWith("http") ? `${BASE}${prod.image}` : prod.image,
+    };
+
+    //devuelvo el producto
+    return res.json({
+      ok: true,
+      product,
+    });
+  } catch (error) {
+    console.log("Error interno:", error);
+    res.status(500).json({
+      ok: false,
+      msg: "Error del servidor.",
+    });
+  }
+};
+
 export const updateProduct = async (req, res) => {
   //id de params y el body con los cambios
   const {
@@ -143,8 +178,8 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    //actualizo datos del body
-    const newProduct = await Products.findByIdAndUpdate(id, body, { new: true });
+    //actualizo con las validaciones del esquema
+    const newProduct = await Products.findByIdAndUpdate(id, body, { new: true, runValidators: true });
 
     //respuesta
     res.json({
@@ -153,6 +188,21 @@ export const updateProduct = async (req, res) => {
       product: newProduct,
     });
   } catch (error) {
+    if (error?.name === "CastError") {
+      return res.status(400).json({
+        ok: false,
+        msg: "ID inválido.",
+      });
+    }
+
+    if (error?.name === "ValidationError") {
+      return res.status(400).json({
+        ok: false,
+        msg: "Datos inválidos.",
+        errors: error.errors,
+      });
+    }
+
     console.log("Error interno: ", error);
     res.status(500).json({
       ok: false,
@@ -186,6 +236,11 @@ export const deleteProduct = async (req, res) => {
       msg: "Producto eliminado correctamente.",
     });
   } catch (error) {
+    if (error?.name === "CastError")
+      return res.status(400).json({
+        ok: false,
+        msg: "ID inválido.",
+      });
     console.log("Error interno: ", error);
     res.status(500).json({
       ok: false,
