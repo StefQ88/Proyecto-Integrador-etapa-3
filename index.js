@@ -17,7 +17,7 @@ const api = async () => {
 
   // MIDDLEWARES
   server.use(express.json()); // para leer json en req.body
-  server.use(cors({ origin: "http://localhost:5173" }));
+  server.use(cors());
 
   // RUTAS
   server.use("/images", imageRoutes);
